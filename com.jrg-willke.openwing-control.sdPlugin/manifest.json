@@ -17,6 +17,21 @@
 					"TitleAlignment": "middle"
 				}
 			]
+		},
+		{
+			"Name": "Channel 1 Mute",
+			"UUID": "com.jrg-willke.openwing-control.channel1-mute",
+			"Icon": "imgs/actions/counter/icon",
+			"Tooltip": "Toggle Channel 1 Mute.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/counter/key",
+					"TitleAlignment": "middle"
+				}
+			]
 		}
 	],
 	"Category": "OpenWING Control",

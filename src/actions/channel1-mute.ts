@@ -3,21 +3,21 @@ import { action, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEv
 import type { OscResponse } from "../wing/IWingConnection";
 import { connection, wing } from "../wing/wingRuntime";
 
-const main = wing.main(1);
-const mainMuteAddress = "/main/1/mute";
+const channel = wing.channel(1);
+const channelMuteAddress = "/ch/1/mute";
 
 type TitleAction = {
 	setTitle(title: string): Promise<void>;
 };
 
-@action({ UUID: "com.jrg-willke.openwing-control.main1-mute" })
-export class Main1Mute extends SingletonAction {
+@action({ UUID: "com.jrg-willke.openwing-control.channel1-mute" })
+export class Channel1Mute extends SingletonAction {
 	private readonly visibleActions = new Map<string, TitleAction>();
 
 	constructor() {
 		super();
 
-		connection.subscribe(mainMuteAddress, async (message) => {
+		connection.subscribe(channelMuteAddress, async (message) => {
 			await this.updateTitlesFromMessage(message);
 		});
 	}
@@ -40,7 +40,7 @@ export class Main1Mute extends SingletonAction {
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
 		try {
 			await this.connectAndSubscribe();
-			await main.toggleMuted();
+			await channel.toggleMuted();
 			await this.refreshTitle(ev.action);
 		} catch {
 			await ev.action.setTitle("ERR");
@@ -49,11 +49,11 @@ export class Main1Mute extends SingletonAction {
 
 	private async connectAndSubscribe(): Promise<void> {
 		await connection.connect();
-		await connection.subscribeRemote(mainMuteAddress);
+		await connection.subscribeRemote(channelMuteAddress);
 	}
 
 	private async refreshTitle(action: TitleAction): Promise<void> {
-		const muted = await main.getMuted();
+		const muted = await channel.getMuted();
 		await action.setTitle(muted ? "MUTED" : "LIVE");
 	}
 
@@ -70,7 +70,7 @@ export class Main1Mute extends SingletonAction {
 		const numericArg = this.lastNumericArg(message.args);
 
 		if (numericArg === undefined) {
-			throw new Error(`${mainMuteAddress} message did not include a numeric mute value.`);
+			throw new Error(`${channelMuteAddress} message did not include a numeric mute value.`);
 		}
 
 		return numericArg !== 0;

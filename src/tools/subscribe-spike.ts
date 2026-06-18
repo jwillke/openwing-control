@@ -37,7 +37,7 @@ const OSC = require("osc") as OscModule;
 const remoteAddress = process.argv[2]?.trim() || process.env.WING_IP?.trim() || "192.168.178.86";
 const remotePort = 2223;
 const subscriptionAddress = "/*S";
-const observedAddress = "/main/1/mute";
+const observedAddresses = new Set(["/ch/1/mute", "/ch/1/$mute"]);
 const keepaliveMilliseconds = 5000;
 const runMilliseconds = 35_000;
 
@@ -64,8 +64,8 @@ const sendSubscription = (): void => {
 udpPort.on("ready", () => {
     console.log(`Connected UDP OSC socket for WING at ${remoteAddress}:${remotePort}.`);
     console.log(`Sending documented WING OSC event subscription command: ${subscriptionAddress}`);
-    console.log(`Watching for decoded ${observedAddress} messages for ${runMilliseconds / 1000} seconds.`);
-    console.log("Press Main 1 mute/unmute on the WING during this window.");
+    console.log(`Watching for decoded ${[...observedAddresses].join(" and ")} messages for ${runMilliseconds / 1000} seconds.`);
+    console.log("Press Channel 1 mute/unmute on the WING during this window.");
     console.log("");
 
     sendSubscription();
@@ -90,8 +90,8 @@ udpPort.on("message", (message) => {
     const response = message as OscResponse;
     log("received decoded OSC message", response);
 
-    if (response.address === observedAddress) {
-        log("observed Main 1 mute update", response);
+    if (response.address && observedAddresses.has(response.address)) {
+        log("OBSERVED CHANNEL 1 MUTE UPDATE", response);
     }
 });
 
