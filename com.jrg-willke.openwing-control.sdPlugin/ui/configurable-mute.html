@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="en">
+    <title>Mute Settings</title>
+    <meta charset="utf-8" />
+    <style>
+        body {
+            color: #d8d8d8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 13px;
+            margin: 0;
+            padding: 16px;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        select,
+        input {
+            background: #2d2d2d;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #f0f0f0;
+            font: inherit;
+            min-height: 28px;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <label>
+        Target
+        <select id="targetType">
+            <option value="channel">Channel</option>
+            <option value="main">Main</option>
+        </select>
+    </label>
+
+    <label>
+        Index
+        <input id="targetIndex" type="number" min="1" step="1" value="1" />
+    </label>
+
+    <label>
+        Mode
+        <select id="mode">
+            <option value="toggle">Toggle</option>
+            <option value="mute">Mute</option>
+            <option value="unmute">Unmute</option>
+        </select>
+    </label>
+
+    <script>
+        const defaultSettings = {
+            targetType: "channel",
+            targetIndex: 1,
+            mode: "toggle"
+        };
+
+        const controls = {
+            targetType: document.getElementById("targetType"),
+            targetIndex: document.getElementById("targetIndex"),
+            mode: document.getElementById("mode")
+        };
+
+        let websocket;
+        let propertyInspectorUuid;
+        let settings = { ...defaultSettings };
+
+        function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
+            propertyInspectorUuid = uuid;
+            websocket = new WebSocket(`ws://127.0.0.1:${port}`);
+
+            websocket.addEventListener("open", () => {
+                websocket.send(JSON.stringify({
+                    event: registerEvent,
+                    uuid
+                }));
+
+                const parsedActionInfo = JSON.parse(actionInfo);
+                applySettings(parsedActionInfo.payload?.settings);
+                requestSettings();
+            });
+
+            websocket.addEventListener("message", (event) => {
+                const message = JSON.parse(event.data);
+
+                if (message.event === "didReceiveSettings") {
+                    applySettings(message.payload?.settings);
+                }
+            });
+        }
+
+        function requestSettings() {
+            websocket.send(JSON.stringify({
+                event: "getSettings",
+                context: propertyInspectorUuid
+            }));
+        }
+
+        function persistSettings() {
+            settings = readSettings();
+            websocket.send(JSON.stringify({
+                event: "setSettings",
+                context: propertyInspectorUuid,
+                payload: settings
+            }));
+        }
+
+        function applySettings(nextSettings) {
+            settings = {
+                ...defaultSettings,
+                ...nextSettings
+            };
+
+            controls.targetType.value = isTargetType(settings.targetType) ? settings.targetType : defaultSettings.targetType;
+            controls.targetIndex.value = `${isPositiveInteger(settings.targetIndex) ? settings.targetIndex : defaultSettings.targetIndex}`;
+            controls.mode.value = isMode(settings.mode) ? settings.mode : defaultSettings.mode;
+        }
+
+        function readSettings() {
+            const targetIndex = Number.parseInt(controls.targetIndex.value, 10);
+
+            return {
+                targetType: isTargetType(controls.targetType.value) ? controls.targetType.value : defaultSettings.targetType,
+                targetIndex: Number.isInteger(targetIndex) && targetIndex > 0 ? targetIndex : defaultSettings.targetIndex,
+                mode: isMode(controls.mode.value) ? controls.mode.value : defaultSettings.mode
+            };
+        }
+
+        function isTargetType(value) {
+            return value === "channel" || value === "main";
+        }
+
+        function isMode(value) {
+            return value === "toggle" || value === "mute" || value === "unmute";
+        }
+
+        function isPositiveInteger(value) {
+            return Number.isInteger(value) && value > 0;
+        }
+
+        controls.targetType.addEventListener("change", persistSettings);
+        controls.targetIndex.addEventListener("change", persistSettings);
+        controls.mode.addEventListener("change", persistSettings);
+    </script>
+</body>
+
+</html>

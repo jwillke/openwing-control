@@ -188,6 +188,38 @@ await wing.scene(10).load({
 });
 ```
 
+## Configurable Stream Deck Actions
+
+Stream Deck actions should be thin configuration-driven adapters over the mixer domain API. A planned generic Mute action can replace hard-coded actions such as "Main 1 Mute" and "Channel 1 Mute" once the first fixed actions prove the workflow.
+
+```ts
+type MuteTargetType = "channel" | "main" | "bus" | "dca" | "muteGroup";
+type MuteMode = "toggle" | "mute" | "unmute";
+
+type MuteActionSettings = {
+    targetType: MuteTargetType;
+    targetIndex: number;
+    mode: MuteMode;
+    fadeBeforeMute?: {
+        enabled: boolean;
+        durationMs: number;
+        targetFaderDb: number;
+    };
+};
+```
+
+The first implementation should focus on direct mute control:
+
+```ts
+{
+    targetType: "channel",
+    targetIndex: 1,
+    mode: "toggle"
+}
+```
+
+`fadeBeforeMute` is a later advanced feature, not part of the first configurable Mute action implementation. It exists in the settings shape to document the intended direction: optionally fade a target fader to a configured dB level over a configured duration before applying mute.
+
 ## Backends
 
 The same API should work across implementations:

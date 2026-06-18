@@ -32,6 +32,22 @@
 					"TitleAlignment": "middle"
 				}
 			]
+		},
+		{
+			"Name": "Mute",
+			"UUID": "com.jrg-willke.openwing-control.configurable-mute",
+			"Icon": "imgs/actions/counter/icon",
+			"Tooltip": "Mute, unmute or toggle a configurable mixer target.",
+			"PropertyInspectorPath": "ui/configurable-mute.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/counter/key",
+					"TitleAlignment": "middle"
+				}
+			]
 		}
 	],
 	"Category": "OpenWING Control",

@@ -1,0 +1,179 @@
+import { action, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEvent } from "@elgato/streamdeck";
+
+import type { OscResponse } from "../wing/IWingConnection";
+import { connection, wing } from "../wing/wingRuntime";
+
+type MuteTargetType = "channel" | "main";
+type MuteMode = "toggle" | "mute" | "unmute";
+
+type MuteActionSettings = {
+	[key: string]: string | number | boolean | null | undefined;
+	targetType?: MuteTargetType;
+	targetIndex?: number;
+	mode?: MuteMode;
+};
+
+type ResolvedMuteActionSettings = {
+	targetType: MuteTargetType;
+	targetIndex: number;
+	mode: MuteMode;
+};
+
+type MutableTarget = {
+	getMuted(): Promise<boolean>;
+	setMuted(muted: boolean): Promise<void>;
+	toggleMuted(): Promise<boolean>;
+};
+
+type TitleAction = {
+	setTitle(title: string): Promise<void>;
+};
+
+type VisibleAction = {
+	action: TitleAction;
+	address: string;
+	unsubscribe(): void;
+};
+
+const defaultSettings: ResolvedMuteActionSettings = {
+	targetType: "channel",
+	targetIndex: 1,
+	mode: "toggle"
+};
+
+@action({ UUID: "com.jrg-willke.openwing-control.configurable-mute" })
+export class ConfigurableMute extends SingletonAction<MuteActionSettings> {
+	private readonly visibleActions = new Map<string, VisibleAction>();
+
+	override async onWillAppear(ev: WillAppearEvent<MuteActionSettings>): Promise<void> {
+		const settings = this.resolveSettings(ev.payload.settings);
+		const address = this.muteAddress(settings);
+		const unsubscribe = connection.subscribe(address, async (message) => {
+			await this.updateTitleFromMessage(ev.action, message);
+		});
+
+		this.visibleActions.set(ev.action.id, {
+			action: ev.action,
+			address,
+			unsubscribe
+		});
+
+		try {
+			await this.connectAndSubscribe(address);
+			await this.refreshTitle(ev.action, settings);
+		} catch {
+			await ev.action.setTitle("ERR");
+		}
+	}
+
+	override onWillDisappear(ev: WillDisappearEvent<MuteActionSettings>): void {
+		const visibleAction = this.visibleActions.get(ev.action.id);
+
+		if (!visibleAction) {
+			return;
+		}
+
+		visibleAction.unsubscribe();
+		this.visibleActions.delete(ev.action.id);
+	}
+
+	override async onKeyDown(ev: KeyDownEvent<MuteActionSettings>): Promise<void> {
+		const settings = this.resolveSettings(ev.payload.settings);
+
+		try {
+			await this.connectAndSubscribe(this.muteAddress(settings));
+			await this.applyMode(settings);
+			await this.refreshTitle(ev.action, settings);
+		} catch {
+			await ev.action.setTitle("ERR");
+		}
+	}
+
+	private async connectAndSubscribe(address: string): Promise<void> {
+		await connection.connect();
+		await connection.subscribeRemote(address);
+	}
+
+	private async applyMode(settings: ResolvedMuteActionSettings): Promise<void> {
+		const target = this.target(settings);
+
+		if (settings.mode === "toggle") {
+			await target.toggleMuted();
+			return;
+		}
+
+		await target.setMuted(settings.mode === "mute");
+	}
+
+	private async refreshTitle(action: TitleAction, settings: ResolvedMuteActionSettings): Promise<void> {
+		const muted = await this.target(settings).getMuted();
+		await action.setTitle(muted ? "MUTED" : "LIVE");
+	}
+
+	private async updateTitleFromMessage(action: TitleAction, message: OscResponse): Promise<void> {
+		const muted = this.mutedFromMessage(message);
+		await action.setTitle(muted ? "MUTED" : "LIVE");
+	}
+
+	private target(settings: ResolvedMuteActionSettings): MutableTarget {
+		if (settings.targetType === "main") {
+			return wing.main(settings.targetIndex);
+		}
+
+		return wing.channel(settings.targetIndex);
+	}
+
+	private muteAddress(settings: ResolvedMuteActionSettings): string {
+		if (settings.targetType === "main") {
+			return `/main/${settings.targetIndex}/mute`;
+		}
+
+		return `/ch/${settings.targetIndex}/mute`;
+	}
+
+	private resolveSettings(settings: MuteActionSettings): ResolvedMuteActionSettings {
+		return {
+			targetType: this.isTargetType(settings.targetType) ? settings.targetType : defaultSettings.targetType,
+			targetIndex: this.isPositiveInteger(settings.targetIndex) ? settings.targetIndex : defaultSettings.targetIndex,
+			mode: this.isMode(settings.mode) ? settings.mode : defaultSettings.mode
+		};
+	}
+
+	private isTargetType(value: unknown): value is MuteTargetType {
+		return value === "channel" || value === "main";
+	}
+
+	private isMode(value: unknown): value is MuteMode {
+		return value === "toggle" || value === "mute" || value === "unmute";
+	}
+
+	private isPositiveInteger(value: unknown): value is number {
+		return typeof value === "number" && Number.isInteger(value) && value > 0;
+	}
+
+	private mutedFromMessage(message: OscResponse): boolean {
+		const numericArg = this.lastNumericArg(message.args);
+
+		if (numericArg === undefined) {
+			throw new Error(`${message.address ?? "OSC message"} did not include a numeric mute value.`);
+		}
+
+		return numericArg !== 0;
+	}
+
+	private lastNumericArg(args: unknown[] | undefined): number | undefined {
+		if (!args) {
+			return undefined;
+		}
+
+		for (let index = args.length - 1; index >= 0; index--) {
+			const arg = args[index];
+
+			if (typeof arg === "number") {
+				return arg;
+			}
+		}
+
+		return undefined;
+	}
+}
