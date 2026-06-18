@@ -1,0 +1,46 @@
+{
+	"Name": "OpenWING Control",
+	"Version": "0.1.0.0",
+	"Author": "Jörg Willke",
+	"Actions": [
+		{
+			"Name": "Main 1 Mute",
+			"UUID": "com.jrg-willke.openwing-control.increment",
+			"Icon": "imgs/actions/counter/icon",
+			"Tooltip": "Toggle Main 1 Mute.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/counter/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		}
+	],
+	"Category": "OpenWING Control",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"Description": "Professional Stream Deck integration for Behringer WING mixers with live feedback, automatic discovery and native OSC control.",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		},
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "24",
+		"Debug": "enabled"
+	},
+	"UUID": "com.jrg-willke.openwing-control"
+}

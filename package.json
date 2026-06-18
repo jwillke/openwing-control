@@ -1,0 +1,38 @@
+{
+  "name": "openwing-control",
+  "version": "0.1.0",
+  "description": "Native Stream Deck integration for Behringer WING mixers.",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c --forceExit",
+    "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.jrg-willke.openwing-control\"",
+    "osc-spike": "node src/tools/osc-spike.ts",
+    "subscribe-spike": "node src/tools/subscribe-spike.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jwillke/openwing-control.git"
+  },
+  "author": "Jörg Willke",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jwillke/openwing-control/issues"
+  },
+  "homepage": "https://github.com/jwillke/openwing-control#readme",
+  "dependencies": {
+    "@elgato/streamdeck": "^2.0.0",
+    "osc": "^2.4.5"
+  },
+  "devDependencies": {
+    "@elgato/cli": "^1.7.4",
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^15.2.2",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@rollup/plugin-typescript": "^12.1.0",
+    "@tsconfig/node20": "^20.1.2",
+    "@types/node": "~24.1.0",
+    "rollup": "^4.0.2",
+    "tslib": "^2.6.2",
+    "typescript": "^5.2.2"
+  }
+}
