@@ -16,7 +16,7 @@ type TitleAction = {
 };
 
 @action({ UUID: "com.jrg-willke.openwing-control.increment" })
-export class IncrementCounter extends SingletonAction {
+export class Main1Mute extends SingletonAction {
 	private readonly visibleActions = new Map<string, TitleAction>();
 
 	constructor() {
