@@ -279,6 +279,44 @@ Later, the same encoder action can grow a sends-on-fader mode so the encoder con
 
 EQ, dynamics, and advanced follow-selected-channel workflows are future ideas, not the first implementation. They should wait until the simpler target/fader/mute encoder path is reliable and the behavior boundaries are clearer.
 
+## Virtual Channel Strip Encoder
+
+Name: Target Encoder
+
+Purpose: A Stream Deck+ encoder acts like a small physical channel strip for one mixer target.
+
+Initial scope:
+
+```ts
+type TargetEncoderTargetType = "channel" | "main" | "bus" | "dca";
+
+type TargetEncoderSettings = {
+    targetType: TargetEncoderTargetType;
+    targetIndex: number;
+};
+```
+
+The first real encoder action should behave like this:
+
+- rotate: adjust fader level
+- press: toggle mute
+- display title: target name or fallback such as `CH 1` or `MAIN 1`
+- display value: current fader value in dB
+- display indicator: normalized fader position
+- muted state should be visually obvious
+- live updates for mute and fader
+
+The display should stay useful without becoming busy. The first implementation should prioritize a reliable name/value/position/mute loop before adding richer visual data.
+
+Out of scope for the first version:
+
+- meters
+- WING colors
+- WING icons
+- sends-on-fader
+- follow selected channel
+- EQ/dynamics
+
 ## Generic Command Action
 
 The long-term goal is one configurable Stream Deck button for common mixer commands. Instead of creating a separate action class for each mixer operation, the action should describe:
