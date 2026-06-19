@@ -254,6 +254,31 @@ await behavior.updateTitle(action, wing);
 
 The current configurable Mute action is an intermediate step toward this architecture. It proves settings-driven target resolution and live feedback before introducing a broader behavior system.
 
+## First Stream Deck+ Encoder Milestone
+
+The first realistic Stream Deck+ rotary control should be one configurable encoder action for common level work, not a full mixer surface. It should support these settings:
+
+```ts
+type EncoderTargetType = "channel" | "main" | "bus" | "dca";
+
+type EncoderActionSettings = {
+    targetType: EncoderTargetType;
+    targetIndex: number;
+};
+```
+
+The initial behavior should be:
+
+- rotate: adjust fader level
+- press: toggle mute
+- touch/display: show target name, fader value, mute state, and later meter level
+
+The first implementation should receive live updates from WING for mute and fader state so the display remains useful when the mixer is changed directly. Meter level can be added after the basic display and control loop is stable.
+
+Later, the same encoder action can grow a sends-on-fader mode so the encoder controls a selected send level instead of the target's own fader.
+
+EQ, dynamics, and advanced follow-selected-channel workflows are future ideas, not the first implementation. They should wait until the simpler target/fader/mute encoder path is reliable and the behavior boundaries are clearer.
+
 ## Generic Command Action
 
 The long-term goal is one configurable Stream Deck button for common mixer commands. Instead of creating a separate action class for each mixer operation, the action should describe:
