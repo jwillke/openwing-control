@@ -220,6 +220,47 @@ The first implementation should focus on direct mute control:
 
 `fadeBeforeMute` is a later advanced feature, not part of the first configurable Mute action implementation. It exists in the settings shape to document the intended direction: optionally fade a target fader to a configured dB level over a configured duration before applying mute.
 
+## Generic Command Action
+
+The long-term goal is one configurable Stream Deck button for common mixer commands. Instead of creating a separate action class for each mixer operation, the action should describe:
+
+```ts
+type GenericCommandActionSettings = {
+    targetType: string;
+    targetIndex?: number;
+    command: string;
+    parameters?: Record<string, unknown>;
+};
+```
+
+For target-oriented commands, `targetType` identifies the mixer object family, such as `channel`, `main`, `bus`, `dca`, or `muteGroup`. `targetIndex` selects the concrete target when that target type is indexed. `command` names the operation to perform. `parameters` carries command-specific values, such as a fader level, step size, scene number, or future options.
+
+The initial supported commands should stay narrow:
+
+```ts
+type InitialGenericCommand =
+    | "mute.toggle"
+    | "mute.on"
+    | "mute.off";
+```
+
+Future commands can grow from the same shape:
+
+```ts
+type FutureGenericCommand =
+    | "solo.toggle"
+    | "solo.on"
+    | "solo.off"
+    | "fader.set"
+    | "fader.increase"
+    | "fader.decrease"
+    | "scene.load"
+    | "recorder.record"
+    | "recorder.stop";
+```
+
+This should grow incrementally. Each new command should be added only after the corresponding domain API exists, the Stream Deck settings model is clear, and title or feedback behavior is understood. Avoid implementing every command at once; a small command set with predictable behavior is more useful than a broad action surface with uneven semantics.
+
 ## Backends
 
 The same API should work across implementations:
