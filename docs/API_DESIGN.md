@@ -220,6 +220,40 @@ The first implementation should focus on direct mute control:
 
 `fadeBeforeMute` is a later advanced feature, not part of the first configurable Mute action implementation. It exists in the settings shape to document the intended direction: optionally fade a target fader to a configured dB level over a configured duration before applying mute.
 
+## OpenWING Action Architecture
+
+The preferred long-term direction is to avoid many specialized Stream Deck actions. Fixed actions such as "Main 1 Mute" and "Channel 1 Mute" are useful while proving the first workflows, but they should not become the main extension model.
+
+Prefer one or a few universal actions that can be configured for common mixer operations. A universal action should be configured by:
+
+- target type
+- target index or discovered target
+- behavior or command
+- appearance
+
+Behavior should be a separate concept from the Stream Deck action shell. Examples:
+
+```ts
+type ActionBehavior =
+    | ToggleMuteBehavior
+    | SetMuteBehavior
+    | SetFaderBehavior
+    | RecorderTransportBehavior
+    | SceneLoadBehavior;
+```
+
+The Stream Deck action should not contain mixer-specific command logic directly. Its job is to read settings, resolve those settings into a target and behavior, execute the behavior, and update presentation. The behavior owns the mixer-specific operation and any command-specific feedback rules.
+
+In this model, the action flow is:
+
+```ts
+const behavior = behaviorFactory.fromSettings(settings);
+await behavior.execute(wing);
+await behavior.updateTitle(action, wing);
+```
+
+The current configurable Mute action is an intermediate step toward this architecture. It proves settings-driven target resolution and live feedback before introducing a broader behavior system.
+
 ## Generic Command Action
 
 The long-term goal is one configurable Stream Deck button for common mixer commands. Instead of creating a separate action class for each mixer operation, the action should describe:
