@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="en">
+    <title>Target Encoder Settings</title>
+    <meta charset="utf-8" />
+    <style>
+        body {
+            color: #d8d8d8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 13px;
+            margin: 0;
+            padding: 16px;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        select,
+        input {
+            background: #2d2d2d;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #f0f0f0;
+            font: inherit;
+            min-height: 28px;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <label>
+        Target
+        <select id="targetType">
+            <option value="channel">Channel</option>
+            <option value="main">Main</option>
+        </select>
+    </label>
+
+    <label>
+        Index
+        <input id="targetIndex" type="number" min="1" step="1" value="1" />
+    </label>
+
+    <label>
+        Step dB
+        <input id="stepDb" type="number" min="0.1" step="0.1" value="0.5" />
+    </label>
+
+    <script>
+        const defaultSettings = {
+            targetType: "channel",
+            targetIndex: 1,
+            stepDb: 0.5
+        };
+
+        const controls = {
+            targetType: document.getElementById("targetType"),
+            targetIndex: document.getElementById("targetIndex"),
+            stepDb: document.getElementById("stepDb")
+        };
+
+        let websocket;
+        let propertyInspectorUuid;
+        let settings = { ...defaultSettings };
+
+        function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
+            propertyInspectorUuid = uuid;
+            websocket = new WebSocket(`ws://127.0.0.1:${port}`);
+
+            websocket.addEventListener("open", () => {
+                websocket.send(JSON.stringify({
+                    event: registerEvent,
+                    uuid
+                }));
+
+                const parsedActionInfo = JSON.parse(actionInfo);
+                applySettings(parsedActionInfo.payload?.settings);
+                requestSettings();
+            });
+
+            websocket.addEventListener("message", (event) => {
+                const message = JSON.parse(event.data);
+
+                if (message.event === "didReceiveSettings") {
+                    applySettings(message.payload?.settings);
+                }
+            });
+        }
+
+        function requestSettings() {
+            websocket.send(JSON.stringify({
+                event: "getSettings",
+                context: propertyInspectorUuid
+            }));
+        }
+
+        function persistSettings() {
+            settings = readSettings();
+            websocket.send(JSON.stringify({
+                event: "setSettings",
+                context: propertyInspectorUuid,
+                payload: settings
+            }));
+        }
+
+        function applySettings(nextSettings) {
+            settings = {
+                ...defaultSettings,
+                ...nextSettings
+            };
+
+            controls.targetType.value = isTargetType(settings.targetType) ? settings.targetType : defaultSettings.targetType;
+            controls.targetIndex.value = `${isPositiveInteger(settings.targetIndex) ? settings.targetIndex : defaultSettings.targetIndex}`;
+            controls.stepDb.value = `${isStepDb(settings.stepDb) ? settings.stepDb : defaultSettings.stepDb}`;
+        }
+
+        function readSettings() {
+            const targetIndex = Number.parseInt(controls.targetIndex.value, 10);
+            const stepDb = Number.parseFloat(controls.stepDb.value);
+
+            return {
+                targetType: isTargetType(controls.targetType.value) ? controls.targetType.value : defaultSettings.targetType,
+                targetIndex: Number.isInteger(targetIndex) && targetIndex > 0 ? targetIndex : defaultSettings.targetIndex,
+                stepDb: Number.isFinite(stepDb) && stepDb >= 0.1 ? stepDb : defaultSettings.stepDb
+            };
+        }
+
+        function isTargetType(value) {
+            return value === "channel" || value === "main";
+        }
+
+        function isPositiveInteger(value) {
+            return Number.isInteger(value) && value > 0;
+        }
+
+        function isStepDb(value) {
+            return typeof value === "number" && Number.isFinite(value) && value >= 0.1;
+        }
+
+        controls.targetType.addEventListener("change", persistSettings);
+        controls.targetIndex.addEventListener("change", persistSettings);
+        controls.stepDb.addEventListener("change", persistSettings);
+    </script>
+</body>
+
+</html>

@@ -8,7 +8,8 @@
     "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.jrg-willke.openwing-control\"",
     "osc-spike": "node src/tools/osc-spike.ts",
     "subscribe-spike": "node src/tools/subscribe-spike.ts",
-    "fader-spike": "tsx src/tools/fader-spike.ts"
+    "fader-spike": "tsx src/tools/fader-spike.ts",
+    "name-spike": "tsx src/tools/name-spike.ts"
   },
   "repository": {
     "type": "git",

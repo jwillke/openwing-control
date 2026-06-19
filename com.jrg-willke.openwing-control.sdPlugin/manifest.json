@@ -72,6 +72,31 @@
 					"Touch": "Log touch tap"
 				}
 			}
+		},
+		{
+			"Name": "Target Encoder",
+			"UUID": "com.jrg-willke.openwing-control.target-encoder",
+			"Icon": "imgs/actions/counter/icon",
+			"Tooltip": "Control Channel 1 fader and mute.",
+			"PropertyInspectorPath": "ui/target-encoder.html",
+			"Controllers": [
+				"Encoder"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/counter/key",
+					"TitleAlignment": "middle"
+				}
+			],
+			"Encoder": {
+				"layout": "$B1",
+				"Icon": "imgs/actions/counter/icon",
+				"TriggerDescription": {
+					"Rotate": "Adjust Channel 1 fader",
+					"Push": "Toggle Channel 1 mute",
+					"Touch": "Show Channel 1"
+				}
+			}
 		}
 	],
 	"Category": "OpenWING Control",

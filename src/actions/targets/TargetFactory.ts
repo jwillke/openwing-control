@@ -10,9 +10,11 @@ export class TargetFactory {
             const main = this.wing.main(targetIndex);
 
             return {
+                getName: () => main.getName(),
                 getMuted: () => main.getMuted(),
                 setMuted: (muted) => main.setMuted(muted),
                 toggleMuted: () => main.toggleMuted(),
+                nameAddress: () => main.nameAddress(),
                 muteAddress: () => `/main/${targetIndex}/mute`
             };
         }
@@ -20,9 +22,11 @@ export class TargetFactory {
         const channel = this.wing.channel(targetIndex);
 
         return {
+            getName: () => channel.getName(),
             getMuted: () => channel.getMuted(),
             setMuted: (muted) => channel.setMuted(muted),
             toggleMuted: () => channel.toggleMuted(),
+            nameAddress: () => channel.nameAddress(),
             muteAddress: () => `/ch/${targetIndex}/mute`
         };
     }

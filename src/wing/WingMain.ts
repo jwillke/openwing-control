@@ -53,8 +53,19 @@ export class WingMain {
         await this.connection.send(this.faderAddress(), value);
     }
 
+    async getName(): Promise<string> {
+        const response = await this.connection.request(this.nameAddress());
+        const name = this.firstStringArg(response.args);
+
+        return name ?? `MAIN ${this.index}`;
+    }
+
     faderAddress(): string {
         return `/main/${this.index}/fdr`;
+    }
+
+    nameAddress(): string {
+        return `/main/${this.index}/name`;
     }
 
     private mainMuteAddress(): string {
@@ -97,5 +108,13 @@ export class WingMain {
         }
 
         return undefined;
+    }
+
+    private firstStringArg(args: unknown[] | undefined): string | undefined {
+        if (!args) {
+            return undefined;
+        }
+
+        return args.find((arg): arg is string => typeof arg === "string" && arg.trim().length > 0);
     }
 }
