@@ -27,6 +27,36 @@ export class WingChannel {
         return muted;
     }
 
+    async getFader(): Promise<number> {
+        const response = await this.connection.request(this.faderAddress());
+        const numericArg = this.lastNumericArg(response.args);
+
+        if (numericArg === undefined) {
+            throw new Error(`OSC response for ${this.faderAddress()} did not include a numeric fader value.`);
+        }
+
+        return numericArg;
+    }
+
+    async getFaderNormalized(): Promise<number> {
+        const response = await this.connection.request(this.faderAddress());
+        const numericArg = this.numericArgAt(response.args, 1);
+
+        if (numericArg === undefined) {
+            throw new Error(`OSC response for ${this.faderAddress()} did not include a normalized fader value.`);
+        }
+
+        return numericArg;
+    }
+
+    async setFader(value: number): Promise<void> {
+        await this.connection.send(this.faderAddress(), value);
+    }
+
+    faderAddress(): string {
+        return `/ch/${this.index}/fdr`;
+    }
+
     private channelMuteAddress(): string {
         return `/ch/${this.index}/mute`;
     }
@@ -42,6 +72,28 @@ export class WingChannel {
             if (typeof arg === "number") {
                 return arg;
             }
+        }
+
+        return undefined;
+    }
+
+    private numericArgAt(args: unknown[] | undefined, numericIndex: number): number | undefined {
+        if (!args) {
+            return undefined;
+        }
+
+        let seenNumericArgs = 0;
+
+        for (const arg of args) {
+            if (typeof arg !== "number") {
+                continue;
+            }
+
+            if (seenNumericArgs === numericIndex) {
+                return arg;
+            }
+
+            seenNumericArgs++;
         }
 
         return undefined;
