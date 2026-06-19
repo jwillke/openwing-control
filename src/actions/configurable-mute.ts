@@ -1,10 +1,8 @@
 import { action, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEvent } from "@elgato/streamdeck";
 
+import { MuteBehavior, MuteMode, MuteTargetType } from "./behaviors/MuteBehavior";
 import type { OscResponse } from "../wing/IWingConnection";
 import { connection, wing } from "../wing/wingRuntime";
-
-type MuteTargetType = "channel" | "main";
-type MuteMode = "toggle" | "mute" | "unmute";
 
 type MuteActionSettings = {
 	[key: string]: string | number | boolean | null | undefined;
@@ -17,12 +15,6 @@ type ResolvedMuteActionSettings = {
 	targetType: MuteTargetType;
 	targetIndex: number;
 	mode: MuteMode;
-};
-
-type MutableTarget = {
-	getMuted(): Promise<boolean>;
-	setMuted(muted: boolean): Promise<void>;
-	toggleMuted(): Promise<boolean>;
 };
 
 type TitleAction = {
@@ -47,7 +39,8 @@ export class ConfigurableMute extends SingletonAction<MuteActionSettings> {
 
 	override async onWillAppear(ev: WillAppearEvent<MuteActionSettings>): Promise<void> {
 		const settings = this.resolveSettings(ev.payload.settings);
-		const address = this.muteAddress(settings);
+		const behavior = this.behavior(settings);
+		const address = behavior.muteAddress();
 		const unsubscribe = connection.subscribe(address, async (message) => {
 			await this.updateTitleFromMessage(ev.action, message);
 		});
@@ -60,7 +53,7 @@ export class ConfigurableMute extends SingletonAction<MuteActionSettings> {
 
 		try {
 			await this.connectAndSubscribe(address);
-			await this.refreshTitle(ev.action, settings);
+			await this.refreshTitle(ev.action, behavior);
 		} catch {
 			await ev.action.setTitle("ERR");
 		}
@@ -79,11 +72,12 @@ export class ConfigurableMute extends SingletonAction<MuteActionSettings> {
 
 	override async onKeyDown(ev: KeyDownEvent<MuteActionSettings>): Promise<void> {
 		const settings = this.resolveSettings(ev.payload.settings);
+		const behavior = this.behavior(settings);
 
 		try {
-			await this.connectAndSubscribe(this.muteAddress(settings));
-			await this.applyMode(settings);
-			await this.refreshTitle(ev.action, settings);
+			await this.connectAndSubscribe(behavior.muteAddress());
+			await behavior.execute();
+			await this.refreshTitle(ev.action, behavior);
 		} catch {
 			await ev.action.setTitle("ERR");
 		}
@@ -94,19 +88,8 @@ export class ConfigurableMute extends SingletonAction<MuteActionSettings> {
 		await connection.subscribeRemote(address);
 	}
 
-	private async applyMode(settings: ResolvedMuteActionSettings): Promise<void> {
-		const target = this.target(settings);
-
-		if (settings.mode === "toggle") {
-			await target.toggleMuted();
-			return;
-		}
-
-		await target.setMuted(settings.mode === "mute");
-	}
-
-	private async refreshTitle(action: TitleAction, settings: ResolvedMuteActionSettings): Promise<void> {
-		const muted = await this.target(settings).getMuted();
+	private async refreshTitle(action: TitleAction, behavior: MuteBehavior): Promise<void> {
+		const muted = await behavior.getState();
 		await action.setTitle(muted ? "MUTED" : "LIVE");
 	}
 
@@ -115,20 +98,8 @@ export class ConfigurableMute extends SingletonAction<MuteActionSettings> {
 		await action.setTitle(muted ? "MUTED" : "LIVE");
 	}
 
-	private target(settings: ResolvedMuteActionSettings): MutableTarget {
-		if (settings.targetType === "main") {
-			return wing.main(settings.targetIndex);
-		}
-
-		return wing.channel(settings.targetIndex);
-	}
-
-	private muteAddress(settings: ResolvedMuteActionSettings): string {
-		if (settings.targetType === "main") {
-			return `/main/${settings.targetIndex}/mute`;
-		}
-
-		return `/ch/${settings.targetIndex}/mute`;
+	private behavior(settings: ResolvedMuteActionSettings): MuteBehavior {
+		return new MuteBehavior(wing, settings.targetType, settings.targetIndex, settings.mode);
 	}
 
 	private resolveSettings(settings: MuteActionSettings): ResolvedMuteActionSettings {
