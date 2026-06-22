@@ -89,12 +89,36 @@
 				}
 			],
 			"Encoder": {
-				"layout": "$B1",
+				"layout": "layouts/target-encoder.json",
 				"Icon": "imgs/actions/counter/icon",
 				"TriggerDescription": {
 					"Rotate": "Adjust Channel 1 fader",
 					"Push": "Toggle Channel 1 mute",
 					"Touch": "Show Channel 1"
+				}
+			}
+		},
+		{
+			"Name": "Feedback Spike",
+			"UUID": "com.jrg-willke.openwing-control.feedback-spike",
+			"Icon": "imgs/actions/counter/icon",
+			"Tooltip": "Explore Stream Deck+ feedback fields.",
+			"Controllers": [
+				"Encoder"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/counter/key",
+					"TitleAlignment": "middle"
+				}
+			],
+			"Encoder": {
+				"layout": "$B1",
+				"Icon": "imgs/actions/counter/icon",
+				"TriggerDescription": {
+					"Rotate": "Cycle feedback payloads",
+					"Push": "No action",
+					"Touch": "Cycle feedback payloads"
 				}
 			}
 		}

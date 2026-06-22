@@ -82,11 +82,7 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 			await state.attach(target);
 			await this.updateDisplay(action, state, fallbackTitle);
 		} catch {
-			await action.setFeedback({
-				title: fallbackTitle,
-				value: "ERR",
-				indicator: 0
-			});
+			await this.updateErrorDisplay(action, fallbackTitle);
 		}
 	}
 
@@ -117,11 +113,7 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 			await levelBehavior.setState(nextValue);
 			await visibleEncoder?.state.attach(target);
 		} catch {
-			await ev.action.setFeedback({
-				title: this.displayTitle(visibleEncoder?.state, fallbackTitle),
-				value: "ERR",
-				indicator: 0
-			});
+			await this.updateErrorDisplay(ev.action, this.displayTitle(visibleEncoder?.state, fallbackTitle));
 		}
 	}
 
@@ -137,11 +129,7 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 			await muteBehavior.execute();
 			await visibleEncoder?.state.attach(target);
 		} catch {
-			await ev.action.setFeedback({
-				title: this.displayTitle(visibleEncoder?.state, fallbackTitle),
-				value: "ERR",
-				indicator: 0
-			});
+			await this.updateErrorDisplay(ev.action, this.displayTitle(visibleEncoder?.state, fallbackTitle));
 		}
 	}
 
@@ -149,12 +137,59 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		const indicator = this.indicatorValue(state.normalized);
 		const title = this.displayTitle(state, fallbackTitle);
 		const appearance = getAppearance(state.color, state.icon);
-		// TODO: Apply appearance.streamDeckColor once the chosen Stream Deck+ feedback layout supports a color/background field.
+		const accentColor = state.muted ? "#dc2626" : appearance.streamDeckColor;
+		const valueBackground = state.muted ? "#450a0a" : "#111827";
 
 		await action.setFeedback({
-			title: state.muted ? `${title} MUTED` : title,
-			value: this.formatDisplayValue(state),
-			indicator
+			title: {
+				value: state.muted ? `${title} MUTED` : title,
+				color: "#ffffff",
+				background: accentColor
+			},
+			value: {
+				value: this.formatDisplayValue(state),
+				color: state.muted ? "#fecaca" : "#f8fafc",
+				background: valueBackground
+			},
+			level: {
+				value: indicator,
+				bar_bg_c: state.muted ? "#7f1d1d" : "#1f2937",
+				bar_border_c: accentColor,
+				bar_fill_c: accentColor
+			},
+			mute: {
+				value: "MUTED",
+				enabled: state.muted,
+				color: "#ffffff",
+				background: "#dc2626"
+			}
+		});
+	}
+
+	private async updateErrorDisplay(action: DialAction<TargetEncoderSettings>, title: string): Promise<void> {
+		await action.setFeedback({
+			title: {
+				value: title,
+				color: "#ffffff",
+				background: "#dc2626"
+			},
+			value: {
+				value: "ERR",
+				color: "#ffffff",
+				background: "#450a0a"
+			},
+			level: {
+				value: 0,
+				bar_bg_c: "#7f1d1d",
+				bar_border_c: "#dc2626",
+				bar_fill_c: "#dc2626"
+			},
+			mute: {
+				value: "ERR",
+				enabled: true,
+				color: "#ffffff",
+				background: "#dc2626"
+			}
 		});
 	}
 

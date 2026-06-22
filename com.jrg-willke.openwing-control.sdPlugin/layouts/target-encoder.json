@@ -1,0 +1,84 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+	"id": "openwing-target-encoder",
+	"items": [
+		{
+			"type": "text",
+			"key": "title",
+			"rect": [
+				6,
+				4,
+				188,
+				28
+			],
+			"value": "CH 1",
+			"alignment": "center",
+			"color": "#ffffff",
+			"background": "#374151",
+			"font": {
+				"size": 18,
+				"weight": 700
+			},
+			"text-overflow": "ellipsis",
+			"zOrder": 1
+		},
+		{
+			"type": "text",
+			"key": "value",
+			"rect": [
+				8,
+				38,
+				124,
+				24
+			],
+			"value": "--",
+			"alignment": "left",
+			"color": "#f8fafc",
+			"background": "#111827",
+			"font": {
+				"size": 18,
+				"weight": 600
+			},
+			"text-overflow": "ellipsis",
+			"zOrder": 1
+		},
+		{
+			"type": "text",
+			"key": "mute",
+			"rect": [
+				138,
+				38,
+				54,
+				24
+			],
+			"value": "",
+			"alignment": "center",
+			"color": "#ffffff",
+			"background": "#dc2626",
+			"font": {
+				"size": 12,
+				"weight": 800
+			},
+			"text-overflow": "ellipsis",
+			"enabled": false,
+			"zOrder": 1
+		},
+		{
+			"type": "bar",
+			"key": "level",
+			"rect": [
+				8,
+				74,
+				184,
+				16
+			],
+			"value": 0,
+			"subtype": 0,
+			"border_w": 1,
+			"bar_bg_c": "#1f2937",
+			"bar_border_c": "#6b7280",
+			"bar_fill_c": "#22c55e",
+			"zOrder": 1
+		}
+	]
+}

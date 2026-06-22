@@ -8,6 +8,7 @@ const defaultColorId = 0;
 const defaultIconId = 0;
 const defaultStreamDeckColor = "#6b7280";
 
+// TODO: Calibrate the exact WING color id palette against observed mixer colors.
 const streamDeckColorsByWingColorId = new Map<number, string>([
     [0, defaultStreamDeckColor],
     [1, "#ef4444"],
@@ -22,7 +23,7 @@ const streamDeckColorsByWingColorId = new Map<number, string>([
     [10, "#ec4899"],
     [11, "#f43f5e"],
     [12, "#84cc16"],
-    [13, "#10b981"],
+    [13, "#67e8f9"],
     [14, "#0ea5e9"],
     [15, "#f59e0b"]
 ]);
