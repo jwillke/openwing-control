@@ -41,7 +41,14 @@
         </select>
     </label>
 
-    <label>
+    <label id="channelIndexLabel">
+        Channel
+        <select id="targetIndexSelect">
+            <option value="1">1 – CH 1</option>
+        </select>
+    </label>
+
+    <label id="targetIndexLabel">
         Index
         <input id="targetIndex" type="number" min="1" step="1" value="1" />
     </label>
@@ -58,15 +65,21 @@
             stepDb: 0.5
         };
 
+        const channelSummaryCount = 40;
+
         const controls = {
             targetType: document.getElementById("targetType"),
+            targetIndexSelect: document.getElementById("targetIndexSelect"),
             targetIndex: document.getElementById("targetIndex"),
+            channelIndexLabel: document.getElementById("channelIndexLabel"),
+            targetIndexLabel: document.getElementById("targetIndexLabel"),
             stepDb: document.getElementById("stepDb")
         };
 
         let websocket;
         let propertyInspectorUuid;
         let settings = { ...defaultSettings };
+        let channelSummaries = [];
 
         function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
             propertyInspectorUuid = uuid;
@@ -81,6 +94,7 @@
                 const parsedActionInfo = JSON.parse(actionInfo);
                 applySettings(parsedActionInfo.payload?.settings);
                 requestSettings();
+                requestChannelSummaries();
             });
 
             websocket.addEventListener("message", (event) => {
@@ -89,6 +103,10 @@
                 if (message.event === "didReceiveSettings") {
                     applySettings(message.payload?.settings);
                 }
+
+                if (message.event === "sendToPropertyInspector") {
+                    handlePluginMessage(message.payload);
+                }
             });
         }
 
@@ -96,6 +114,21 @@
             websocket.send(JSON.stringify({
                 event: "getSettings",
                 context: propertyInspectorUuid
+            }));
+        }
+
+        function requestChannelSummaries() {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            websocket.send(JSON.stringify({
+                event: "sendToPlugin",
+                context: propertyInspectorUuid,
+                payload: {
+                    type: "openwing.requestChannelSummaries",
+                    count: channelSummaryCount
+                }
             }));
         }
 
@@ -117,14 +150,18 @@
             controls.targetType.value = isTargetType(settings.targetType) ? settings.targetType : defaultSettings.targetType;
             controls.targetIndex.value = `${isPositiveInteger(settings.targetIndex) ? settings.targetIndex : defaultSettings.targetIndex}`;
             controls.stepDb.value = `${isStepDb(settings.stepDb) ? settings.stepDb : defaultSettings.stepDb}`;
+            renderChannelOptions();
+            updateIndexControlVisibility();
         }
 
         function readSettings() {
-            const targetIndex = Number.parseInt(controls.targetIndex.value, 10);
+            const targetType = isTargetType(controls.targetType.value) ? controls.targetType.value : defaultSettings.targetType;
+            const targetIndexControl = targetType === "channel" ? controls.targetIndexSelect : controls.targetIndex;
+            const targetIndex = Number.parseInt(targetIndexControl.value, 10);
             const stepDb = Number.parseFloat(controls.stepDb.value);
 
             return {
-                targetType: isTargetType(controls.targetType.value) ? controls.targetType.value : defaultSettings.targetType,
+                targetType,
                 targetIndex: Number.isInteger(targetIndex) && targetIndex > 0 ? targetIndex : defaultSettings.targetIndex,
                 stepDb: Number.isFinite(stepDb) && stepDb >= 0.1 ? stepDb : defaultSettings.stepDb
             };
@@ -142,7 +179,55 @@
             return typeof value === "number" && Number.isFinite(value) && value >= 0.1;
         }
 
-        controls.targetType.addEventListener("change", persistSettings);
+        function handlePluginMessage(payload) {
+            if (!payload || payload.type !== "openwing.channelSummaries" || !Array.isArray(payload.summaries)) {
+                return;
+            }
+
+            channelSummaries = payload.summaries
+                .map((summary) => ({
+                    index: Number.parseInt(`${summary.index}`, 10),
+                    name: typeof summary.name === "string" ? summary.name.trim() : ""
+                }))
+                .filter((summary) => Number.isInteger(summary.index) && summary.index > 0);
+
+            renderChannelOptions();
+        }
+
+        function renderChannelOptions() {
+            const selectedIndex = isPositiveInteger(settings.targetIndex) ? settings.targetIndex : defaultSettings.targetIndex;
+            const summaries = [...channelSummaries];
+
+            if (!summaries.some((summary) => summary.index === selectedIndex)) {
+                summaries.push({
+                    index: selectedIndex,
+                    name: `CH ${selectedIndex}`
+                });
+            }
+
+            summaries.sort((left, right) => left.index - right.index);
+            controls.targetIndexSelect.replaceChildren(...summaries.map((summary) => {
+                const option = document.createElement("option");
+                const name = summary.name.length > 0 ? summary.name : `CH ${summary.index}`;
+                option.value = `${summary.index}`;
+                option.textContent = `${summary.index} – ${name}`;
+                return option;
+            }));
+            controls.targetIndexSelect.value = `${selectedIndex}`;
+        }
+
+        function updateIndexControlVisibility() {
+            const isChannel = controls.targetType.value === "channel";
+            controls.channelIndexLabel.style.display = isChannel ? "grid" : "none";
+            controls.targetIndexLabel.style.display = isChannel ? "none" : "grid";
+        }
+
+        controls.targetType.addEventListener("change", () => {
+            updateIndexControlVisibility();
+            requestChannelSummaries();
+            persistSettings();
+        });
+        controls.targetIndexSelect.addEventListener("change", persistSettings);
         controls.targetIndex.addEventListener("change", persistSettings);
         controls.stepDb.addEventListener("change", persistSettings);
     </script>
