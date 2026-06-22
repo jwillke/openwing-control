@@ -8,6 +8,7 @@ import {
 	WillDisappearEvent
 } from "@elgato/streamdeck";
 
+import { getAppearance } from "../appearance/WingAppearance";
 import { LevelBehavior } from "./behaviors/LevelBehavior";
 import { MuteBehavior } from "./behaviors/MuteBehavior";
 import type { Target } from "./targets/Target";
@@ -147,6 +148,8 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 	private async updateDisplay(action: DialAction<TargetEncoderSettings>, state: ChannelState, fallbackTitle: string): Promise<void> {
 		const indicator = this.indicatorValue(state.normalized);
 		const title = this.displayTitle(state, fallbackTitle);
+		const appearance = getAppearance(state.color, state.icon);
+		// TODO: Apply appearance.streamDeckColor once the chosen Stream Deck+ feedback layout supports a color/background field.
 
 		await action.setFeedback({
 			title: state.muted ? `${title} MUTED` : title,
