@@ -1,9 +1,17 @@
 import type { IWingConnection, OscResponse } from "../wing/IWingConnection";
-import type { WingChannel } from "../wing/WingChannel";
 
 type ChannelStateConnection = IWingConnection & {
     subscribe(address: string, listener: (message: OscResponse) => void | Promise<void>): () => void;
     subscribeRemote(address: string): Promise<void>;
+};
+
+export type ChannelStateTarget = {
+    getName(): Promise<string>;
+    getMuted(): Promise<boolean>;
+    getFader(): Promise<number>;
+    getFaderNormalized(): Promise<number>;
+    nameAddress(): string;
+    faderAddress(): string;
 };
 
 type ChannelStateAddresses = {
@@ -29,7 +37,7 @@ export class ChannelState {
     normalized: number | undefined;
     linkedToSource: boolean | undefined;
 
-    private channel: WingChannel | undefined;
+    private channel: ChannelStateTarget | undefined;
     private addresses: ChannelStateAddresses | undefined;
     private readonly unsubscribers: Array<() => void> = [];
     private readonly listeners = new Set<ChannelStateListener>();
@@ -44,7 +52,7 @@ export class ChannelState {
         };
     }
 
-    async attach(channel: WingChannel): Promise<void> {
+    async attach(channel: ChannelStateTarget): Promise<void> {
         this.dispose();
 
         this.channel = channel;
@@ -65,15 +73,15 @@ export class ChannelState {
         this.addresses = undefined;
     }
 
-    private async readInitialState(channel: WingChannel, addresses: ChannelStateAddresses): Promise<void> {
+    private async readInitialState(channel: ChannelStateTarget, addresses: ChannelStateAddresses): Promise<void> {
         const [name, muted, faderDb, normalized, color, icon, linkedToSource] = await Promise.all([
             channel.getName(),
             channel.getMuted(),
             channel.getFader(),
             channel.getFaderNormalized(),
-            this.readNumeric(addresses.color),
-            this.readNumeric(addresses.icon),
-            this.readBoolean(addresses.clink)
+            this.readOptionalNumeric(addresses.color),
+            this.readOptionalNumeric(addresses.icon),
+            this.readOptionalBoolean(addresses.clink)
         ]);
 
         this.name = name;
@@ -170,7 +178,7 @@ export class ChannelState {
         await this.connection.subscribeRemote(addresses.clink);
     }
 
-    private channelAddresses(channel: WingChannel): ChannelStateAddresses {
+    private channelAddresses(channel: ChannelStateTarget): ChannelStateAddresses {
         const name = channel.nameAddress();
         const channelPrefix = name.slice(0, name.lastIndexOf("/"));
 
@@ -193,10 +201,26 @@ export class ChannelState {
         return this.lastNumericArg(response.args);
     }
 
+    private async readOptionalNumeric(address: string): Promise<number | undefined> {
+        try {
+            return await this.readNumeric(address);
+        } catch {
+            return undefined;
+        }
+    }
+
     private async readBoolean(address: string): Promise<boolean | undefined> {
         const value = await this.readNumeric(address);
 
         return value === undefined ? undefined : value !== 0;
+    }
+
+    private async readOptionalBoolean(address: string): Promise<boolean | undefined> {
+        try {
+            return await this.readBoolean(address);
+        } catch {
+            return undefined;
+        }
     }
 
     private notifyListeners(): void {

@@ -11,7 +11,7 @@ import {
 import { LevelBehavior } from "./behaviors/LevelBehavior";
 import { MuteBehavior } from "./behaviors/MuteBehavior";
 import type { Target } from "./targets/Target";
-import type { OscResponse } from "../wing/IWingConnection";
+import { ChannelState } from "../state/ChannelState";
 import { connection, wing } from "../wing/wingRuntime";
 
 type TargetEncoderSettings = {
@@ -38,17 +38,8 @@ type EncoderTarget = Target & {
 
 type VisibleEncoder = {
 	action: DialAction<TargetEncoderSettings>;
-	unsubscribeFader(): void;
-	unsubscribeMute(): void;
-	unsubscribeNames(): void;
-	state: EncoderDisplayState;
-	title: string;
-};
-
-type EncoderDisplayState = {
-	faderValue?: number;
-	normalizedValue?: number;
-	muted?: boolean;
+	state: ChannelState;
+	unsubscribeState(): void;
 };
 
 const defaultSettings: ResolvedTargetEncoderSettings = {
@@ -72,37 +63,26 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		const settings = this.resolveSettings(ev.payload.settings);
 		const target = this.target(settings);
 		const fallbackTitle = this.targetTitle(settings);
-		const state: EncoderDisplayState = {};
+		const state = new ChannelState(connection);
 		const visibleEncoder: VisibleEncoder = {
 			action,
-			unsubscribeFader: () => undefined,
-			unsubscribeMute: () => undefined,
-			unsubscribeNames: () => undefined,
 			state,
-			title: fallbackTitle
+			unsubscribeState: () => undefined
 		};
-		const unsubscribeFader = connection.subscribe(target.faderAddress(), async (message) => {
-			this.updateFaderState(state, message);
-			await this.updateDisplay(action, state, visibleEncoder.title);
+		const unsubscribeState = state.subscribe(async () => {
+			await this.updateDisplay(action, state, fallbackTitle);
 		});
-		const unsubscribeMute = connection.subscribe(target.muteAddress(), async (message) => {
-			this.updateMuteState(state, message);
-			await this.updateDisplay(action, state, visibleEncoder.title);
-		});
-		const unsubscribeNames = this.subscribeToNameUpdates(target, visibleEncoder);
 
-		visibleEncoder.unsubscribeFader = unsubscribeFader;
-		visibleEncoder.unsubscribeMute = unsubscribeMute;
-		visibleEncoder.unsubscribeNames = unsubscribeNames;
+		visibleEncoder.unsubscribeState = unsubscribeState;
 		this.visibleEncoders.set(action.id, visibleEncoder);
 
 		try {
-			await this.connectAndSubscribe(target);
-			visibleEncoder.title = await this.readTargetTitle(target, fallbackTitle);
-			await this.refreshDisplay(action, state, target, visibleEncoder.title);
+			await connection.connect();
+			await state.attach(target);
+			await this.updateDisplay(action, state, fallbackTitle);
 		} catch {
 			await action.setFeedback({
-				title: visibleEncoder.title,
+				title: fallbackTitle,
 				value: "ERR",
 				indicator: 0
 			});
@@ -116,9 +96,8 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 			return;
 		}
 
-		visibleEncoder.unsubscribeFader();
-		visibleEncoder.unsubscribeMute();
-		visibleEncoder.unsubscribeNames();
+		visibleEncoder.unsubscribeState();
+		visibleEncoder.state.dispose();
 		this.visibleEncoders.delete(ev.action.id);
 	}
 
@@ -126,20 +105,19 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		const settings = this.resolveSettings(ev.payload.settings);
 		const visibleEncoder = this.visibleEncoders.get(ev.action.id);
 		const target = this.target(settings);
-		const title = visibleEncoder?.title ?? this.targetTitle(settings);
+		const fallbackTitle = this.targetTitle(settings);
 		const levelBehavior = new LevelBehavior(target);
 
 		try {
 			await connection.connect();
-			await this.connectAndSubscribe(target);
 			const currentValue = await levelBehavior.getState();
 			const nextValue = this.nextFaderValue(currentValue, ev.payload.ticks, settings.stepDb);
 
 			await levelBehavior.setState(nextValue);
-			await this.refreshDisplay(ev.action, visibleEncoder?.state ?? {}, target, title);
+			await visibleEncoder?.state.attach(target);
 		} catch {
 			await ev.action.setFeedback({
-				title,
+				title: this.displayTitle(visibleEncoder?.state, fallbackTitle),
 				value: "ERR",
 				indicator: 0
 			});
@@ -150,118 +128,31 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		const settings = this.resolveSettings(ev.payload.settings);
 		const visibleEncoder = this.visibleEncoders.get(ev.action.id);
 		const target = this.target(settings);
-		const title = visibleEncoder?.title ?? this.targetTitle(settings);
+		const fallbackTitle = this.targetTitle(settings);
 		const muteBehavior = new MuteBehavior(target, "toggle");
 
 		try {
 			await connection.connect();
-			await this.connectAndSubscribe(target);
 			await muteBehavior.execute();
-			await this.refreshDisplay(ev.action, visibleEncoder?.state ?? {}, target, title);
+			await visibleEncoder?.state.attach(target);
 		} catch {
 			await ev.action.setFeedback({
-				title,
+				title: this.displayTitle(visibleEncoder?.state, fallbackTitle),
 				value: "ERR",
 				indicator: 0
 			});
 		}
 	}
 
-	private async connectAndSubscribe(target: EncoderTarget): Promise<void> {
-		await connection.connect();
-		await connection.subscribeRemote(target.faderAddress());
-		await connection.subscribeRemote(target.muteAddress());
-		await connection.subscribeRemote(target.nameAddress());
-		await connection.subscribeRemote(this.nameEventAddress(target.nameAddress()));
-	}
-
-	private subscribeToNameUpdates(target: EncoderTarget, visibleEncoder: VisibleEncoder): () => void {
-		const addresses = [target.nameAddress(), this.nameEventAddress(target.nameAddress())];
-		const unsubscribers = addresses.map((address) =>
-			connection.subscribe(address, async (message) => {
-				const name = this.firstStringArg(message.args);
-
-				if (name === undefined) {
-					return;
-				}
-
-				visibleEncoder.title = name;
-				await this.updateDisplay(visibleEncoder.action, visibleEncoder.state, visibleEncoder.title);
-			})
-		);
-
-		return () => {
-			for (const unsubscribe of unsubscribers) {
-				unsubscribe();
-			}
-		};
-	}
-
-	private nameEventAddress(nameAddress: string): string {
-		const lastSlashIndex = nameAddress.lastIndexOf("/");
-
-		if (lastSlashIndex < 0) {
-			return `$${nameAddress}`;
-		}
-
-		return `${nameAddress.slice(0, lastSlashIndex + 1)}$${nameAddress.slice(lastSlashIndex + 1)}`;
-	}
-
-	private async readTargetTitle(target: EncoderTarget, fallbackTitle: string): Promise<string> {
-		try {
-			const name = await target.getName();
-
-			return name.trim().length > 0 ? name : fallbackTitle;
-		} catch {
-			return fallbackTitle;
-		}
-	}
-
-	private async refreshDisplay(
-		action: DialAction<TargetEncoderSettings>,
-		state: EncoderDisplayState,
-		target: EncoderTarget,
-		title: string
-	): Promise<void> {
-		const levelBehavior = new LevelBehavior(target);
-		const muteBehavior = new MuteBehavior(target, "toggle");
-
-		state.faderValue = await levelBehavior.getState();
-		state.normalizedValue = await levelBehavior.getNormalized();
-		state.muted = await muteBehavior.getState();
-
-		await this.updateDisplay(action, state, title);
-	}
-
-	private async updateDisplay(action: DialAction<TargetEncoderSettings>, state: EncoderDisplayState, title: string): Promise<void> {
-		const indicator = this.indicatorValue(state.normalizedValue);
+	private async updateDisplay(action: DialAction<TargetEncoderSettings>, state: ChannelState, fallbackTitle: string): Promise<void> {
+		const indicator = this.indicatorValue(state.normalized);
+		const title = this.displayTitle(state, fallbackTitle);
 
 		await action.setFeedback({
 			title: state.muted ? `${title} MUTED` : title,
 			value: this.formatDisplayValue(state),
 			indicator
 		});
-	}
-
-	private updateFaderState(state: EncoderDisplayState, message: OscResponse): void {
-		const normalizedValue = this.numericArgAt(message.args, 1);
-		const faderValue = this.lastNumericArg(message.args);
-
-		if (faderValue !== undefined) {
-			state.faderValue = faderValue;
-		}
-
-		if (normalizedValue !== undefined) {
-			state.normalizedValue = normalizedValue;
-		}
-	}
-
-	private updateMuteState(state: EncoderDisplayState, message: OscResponse): void {
-		const numericArg = this.lastNumericArg(message.args);
-
-		if (numericArg !== undefined) {
-			state.muted = numericArg !== 0;
-		}
 	}
 
 	private target(settings: ResolvedTargetEncoderSettings): EncoderTarget {
@@ -314,12 +205,12 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		return `${value.toFixed(1)} dB`;
 	}
 
-	private formatDisplayValue(state: EncoderDisplayState): string {
-		if (state.faderValue === undefined) {
+	private formatDisplayValue(state: ChannelState): string {
+		if (state.faderDb === undefined) {
 			return "--";
 		}
 
-		return this.formatFaderValue(state.faderValue);
+		return this.formatFaderValue(state.faderDb);
 	}
 
 	private nextFaderValue(currentValue: number, ticks: number, stepDb: number): number {
@@ -340,50 +231,10 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		return Math.max(0, Math.min(100, indicator));
 	}
 
-	private lastNumericArg(args: unknown[] | undefined): number | undefined {
-		if (!args) {
-			return undefined;
-		}
+	private displayTitle(state: ChannelState | undefined, fallbackTitle: string): string {
+		const name = state?.name.trim();
 
-		for (let index = args.length - 1; index >= 0; index--) {
-			const arg = args[index];
-
-			if (typeof arg === "number") {
-				return arg;
-			}
-		}
-
-		return undefined;
-	}
-
-	private firstStringArg(args: unknown[] | undefined): string | undefined {
-		if (!args) {
-			return undefined;
-		}
-
-		return args.find((arg): arg is string => typeof arg === "string" && arg.trim().length > 0);
-	}
-
-	private numericArgAt(args: unknown[] | undefined, numericIndex: number): number | undefined {
-		if (!args) {
-			return undefined;
-		}
-
-		let seenNumericArgs = 0;
-
-		for (const arg of args) {
-			if (typeof arg !== "number") {
-				continue;
-			}
-
-			if (seenNumericArgs === numericIndex) {
-				return arg;
-			}
-
-			seenNumericArgs++;
-		}
-
-		return undefined;
+		return name && name.length > 0 ? name : fallbackTitle;
 	}
 
 	private resolveSettings(settings: TargetEncoderSettings): ResolvedTargetEncoderSettings {
