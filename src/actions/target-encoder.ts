@@ -3,6 +3,7 @@ import {
 	DialAction,
 	DialDownEvent,
 	DialRotateEvent,
+	DidReceiveSettingsEvent,
 	SingletonAction,
 	WillAppearEvent,
 	WillDisappearEvent
@@ -13,7 +14,7 @@ import { LevelBehavior } from "./behaviors/LevelBehavior";
 import { MuteBehavior } from "./behaviors/MuteBehavior";
 import type { Target } from "./targets/Target";
 import { ChannelState } from "../state/ChannelState";
-import { connection, wing } from "../wing/wingRuntime";
+import { channelRepository, connection, wing } from "../wing/wingRuntime";
 
 type TargetEncoderSettings = {
 	[key: string]: string | number | boolean | null | undefined;
@@ -40,6 +41,8 @@ type EncoderTarget = Target & {
 type VisibleEncoder = {
 	action: DialAction<TargetEncoderSettings>;
 	state: ChannelState;
+	settingsKey: string;
+	disposeState(): void;
 	unsubscribeState(): void;
 };
 
@@ -64,23 +67,13 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		const settings = this.resolveSettings(ev.payload.settings);
 		const target = this.target(settings);
 		const fallbackTitle = this.targetTitle(settings);
-		const state = new ChannelState(connection);
-		const visibleEncoder: VisibleEncoder = {
-			action,
-			state,
-			unsubscribeState: () => undefined
-		};
-		const unsubscribeState = state.subscribe(async () => {
-			await this.updateDisplay(action, state, fallbackTitle);
-		});
-
-		visibleEncoder.unsubscribeState = unsubscribeState;
-		this.visibleEncoders.set(action.id, visibleEncoder);
 
 		try {
 			await connection.connect();
-			await state.attach(target);
-			await this.updateDisplay(action, state, fallbackTitle);
+			const visibleEncoder = await this.createVisibleEncoder(action, settings, target, fallbackTitle);
+
+			this.visibleEncoders.set(action.id, visibleEncoder);
+			await this.updateDisplay(action, visibleEncoder.state, fallbackTitle);
 		} catch {
 			await this.updateErrorDisplay(action, fallbackTitle);
 		}
@@ -94,8 +87,27 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		}
 
 		visibleEncoder.unsubscribeState();
-		visibleEncoder.state.dispose();
+		visibleEncoder.disposeState();
 		this.visibleEncoders.delete(ev.action.id);
+	}
+
+	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<TargetEncoderSettings>): Promise<void> {
+		if (!ev.action.isDial()) {
+			return;
+		}
+
+		const action = ev.action;
+		const settings = this.resolveSettings(ev.payload.settings);
+		const visibleEncoder = this.visibleEncoders.get(action.id);
+		const target = this.target(settings);
+		const fallbackTitle = this.targetTitle(settings);
+
+		try {
+			await connection.connect();
+			await this.ensureVisibleEncoder(action, settings, target, fallbackTitle, visibleEncoder);
+		} catch {
+			await this.updateErrorDisplay(action, this.displayTitle(visibleEncoder?.state, fallbackTitle));
+		}
 	}
 
 	override async onDialRotate(ev: DialRotateEvent<TargetEncoderSettings>): Promise<void> {
@@ -107,11 +119,12 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 
 		try {
 			await connection.connect();
+			const currentVisibleEncoder = await this.ensureVisibleEncoder(ev.action, settings, target, fallbackTitle, visibleEncoder);
 			const currentValue = await levelBehavior.getState();
 			const nextValue = this.nextFaderValue(currentValue, ev.payload.ticks, settings.stepDb);
 
 			await levelBehavior.setState(nextValue);
-			await visibleEncoder?.state.attach(target);
+			await this.refreshVisibleState(target, currentVisibleEncoder);
 		} catch {
 			await this.updateErrorDisplay(ev.action, this.displayTitle(visibleEncoder?.state, fallbackTitle));
 		}
@@ -126,11 +139,83 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 
 		try {
 			await connection.connect();
+			const currentVisibleEncoder = await this.ensureVisibleEncoder(ev.action, settings, target, fallbackTitle, visibleEncoder);
 			await muteBehavior.execute();
-			await visibleEncoder?.state.attach(target);
+			await this.refreshVisibleState(target, currentVisibleEncoder);
 		} catch {
 			await this.updateErrorDisplay(ev.action, this.displayTitle(visibleEncoder?.state, fallbackTitle));
 		}
+	}
+
+	private async createVisibleEncoder(
+		action: DialAction<TargetEncoderSettings>,
+		settings: ResolvedTargetEncoderSettings,
+		target: EncoderTarget,
+		fallbackTitle: string
+	): Promise<VisibleEncoder> {
+		const state = await this.getState(settings, target);
+		const unsubscribeState = state.subscribe(async () => {
+			await this.updateDisplay(action, state, fallbackTitle);
+		});
+
+		return {
+			action,
+			state,
+			settingsKey: this.settingsKey(settings),
+			disposeState: () => {
+				if (settings.targetType === "main") {
+					state.dispose();
+				}
+			},
+			unsubscribeState
+		};
+	}
+
+	private async getState(settings: ResolvedTargetEncoderSettings, target: EncoderTarget): Promise<ChannelState> {
+		if (settings.targetType === "channel") {
+			return await channelRepository.getChannel(settings.targetIndex);
+		}
+
+		const state = new ChannelState(connection);
+
+		await state.attach(target);
+		return state;
+	}
+
+	private async ensureVisibleEncoder(
+		action: DialAction<TargetEncoderSettings>,
+		settings: ResolvedTargetEncoderSettings,
+		target: EncoderTarget,
+		fallbackTitle: string,
+		visibleEncoder: VisibleEncoder | undefined
+	): Promise<VisibleEncoder> {
+		if (visibleEncoder?.settingsKey === this.settingsKey(settings)) {
+			return visibleEncoder;
+		}
+
+		visibleEncoder?.unsubscribeState();
+		visibleEncoder?.disposeState();
+
+		const nextVisibleEncoder = await this.createVisibleEncoder(action, settings, target, fallbackTitle);
+		this.visibleEncoders.set(action.id, nextVisibleEncoder);
+		await this.updateDisplay(action, nextVisibleEncoder.state, fallbackTitle);
+
+		return nextVisibleEncoder;
+	}
+
+	private async refreshVisibleState(
+		target: EncoderTarget,
+		visibleEncoder: VisibleEncoder | undefined
+	): Promise<void> {
+		if (!visibleEncoder) {
+			return;
+		}
+
+		await visibleEncoder.state.attach(target);
+	}
+
+	private settingsKey(settings: ResolvedTargetEncoderSettings): string {
+		return `${settings.targetType}:${settings.targetIndex}`;
 	}
 
 	private async updateDisplay(action: DialAction<TargetEncoderSettings>, state: ChannelState, fallbackTitle: string): Promise<void> {

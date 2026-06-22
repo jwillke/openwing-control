@@ -1,6 +1,6 @@
 import type { IWingConnection, OscResponse } from "../wing/IWingConnection";
 
-type ChannelStateConnection = IWingConnection & {
+export type ChannelStateConnection = IWingConnection & {
     subscribe(address: string, listener: (message: OscResponse) => void | Promise<void>): () => void;
     subscribeRemote(address: string): Promise<void>;
 };
