@@ -9,7 +9,8 @@
     "osc-spike": "node src/tools/osc-spike.ts",
     "subscribe-spike": "node src/tools/subscribe-spike.ts",
     "fader-spike": "tsx src/tools/fader-spike.ts",
-    "name-spike": "tsx src/tools/name-spike.ts"
+    "name-spike": "tsx src/tools/name-spike.ts",
+    "appearance-spike": "tsx src/tools/appearance-spike.ts"
   },
   "repository": {
     "type": "git",

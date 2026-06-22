@@ -40,7 +40,7 @@ type VisibleEncoder = {
 	action: DialAction<TargetEncoderSettings>;
 	unsubscribeFader(): void;
 	unsubscribeMute(): void;
-	unsubscribeName(): void;
+	unsubscribeNames(): void;
 	state: EncoderDisplayState;
 	title: string;
 };
@@ -77,7 +77,7 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 			action,
 			unsubscribeFader: () => undefined,
 			unsubscribeMute: () => undefined,
-			unsubscribeName: () => undefined,
+			unsubscribeNames: () => undefined,
 			state,
 			title: fallbackTitle
 		};
@@ -89,20 +89,11 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 			this.updateMuteState(state, message);
 			await this.updateDisplay(action, state, visibleEncoder.title);
 		});
-		const unsubscribeName = connection.subscribe(target.nameAddress(), async (message) => {
-			const name = this.firstStringArg(message.args);
-
-			if (name === undefined) {
-				return;
-			}
-
-			visibleEncoder.title = name;
-			await this.updateDisplay(action, state, visibleEncoder.title);
-		});
+		const unsubscribeNames = this.subscribeToNameUpdates(target, visibleEncoder);
 
 		visibleEncoder.unsubscribeFader = unsubscribeFader;
 		visibleEncoder.unsubscribeMute = unsubscribeMute;
-		visibleEncoder.unsubscribeName = unsubscribeName;
+		visibleEncoder.unsubscribeNames = unsubscribeNames;
 		this.visibleEncoders.set(action.id, visibleEncoder);
 
 		try {
@@ -127,7 +118,7 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 
 		visibleEncoder.unsubscribeFader();
 		visibleEncoder.unsubscribeMute();
-		visibleEncoder.unsubscribeName();
+		visibleEncoder.unsubscribeNames();
 		this.visibleEncoders.delete(ev.action.id);
 	}
 
@@ -181,6 +172,39 @@ export class TargetEncoder extends SingletonAction<TargetEncoderSettings> {
 		await connection.subscribeRemote(target.faderAddress());
 		await connection.subscribeRemote(target.muteAddress());
 		await connection.subscribeRemote(target.nameAddress());
+		await connection.subscribeRemote(this.nameEventAddress(target.nameAddress()));
+	}
+
+	private subscribeToNameUpdates(target: EncoderTarget, visibleEncoder: VisibleEncoder): () => void {
+		const addresses = [target.nameAddress(), this.nameEventAddress(target.nameAddress())];
+		const unsubscribers = addresses.map((address) =>
+			connection.subscribe(address, async (message) => {
+				const name = this.firstStringArg(message.args);
+
+				if (name === undefined) {
+					return;
+				}
+
+				visibleEncoder.title = name;
+				await this.updateDisplay(visibleEncoder.action, visibleEncoder.state, visibleEncoder.title);
+			})
+		);
+
+		return () => {
+			for (const unsubscribe of unsubscribers) {
+				unsubscribe();
+			}
+		};
+	}
+
+	private nameEventAddress(nameAddress: string): string {
+		const lastSlashIndex = nameAddress.lastIndexOf("/");
+
+		if (lastSlashIndex < 0) {
+			return `$${nameAddress}`;
+		}
+
+		return `${nameAddress.slice(0, lastSlashIndex + 1)}$${nameAddress.slice(lastSlashIndex + 1)}`;
 	}
 
 	private async readTargetTitle(target: EncoderTarget, fallbackTitle: string): Promise<string> {

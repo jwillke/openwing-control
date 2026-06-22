@@ -317,6 +317,17 @@ Out of scope for the first version:
 - follow selected channel
 - EQ/dynamics
 
+## WING Appearance Discovery Notes
+
+Early OSC discovery shows that appearance data is not always where a user-facing Stream Deck action might expect it to be.
+
+- `/ch/{index}/name` may be empty and does not necessarily match the visible mixer label.
+- `/ch/{index}/col` returns a channel color id.
+- `/ch/{index}/icon` returns a channel icon id.
+- visible labels like `DLX` may come from source customization or routing assignment, not directly from `/ch/{index}/name`.
+
+Source/customization discovery is still open and should be researched before implementing automatic WING names. For Target Encoder v0.1, use fallback labels such as `CH 1` and `MAIN 1`. Add color and icon support later as separate, well-scoped steps.
+
 ## Generic Command Action
 
 The long-term goal is one configurable Stream Deck button for common mixer commands. Instead of creating a separate action class for each mixer operation, the action should describe:
