@@ -324,9 +324,15 @@ Early OSC discovery shows that appearance data is not always where a user-facing
 - `/ch/{index}/name` may be empty and does not necessarily match the visible mixer label.
 - `/ch/{index}/col` returns a channel color id.
 - `/ch/{index}/icon` returns a channel icon id.
+- `/ch/{index}/$name` emits live visible name changes.
+- `/ch/{index}/$col` emits live visible color changes.
+- `/ch/{index}/$icon` emits live visible icon changes.
+- `/ch/{index}/clink` indicates whether channel customization is linked to the source.
 - visible labels like `DLX` may come from source customization or routing assignment, not directly from `/ch/{index}/name`.
+- when linked, changes also appear on `/io/in/LCL/{sourceIndex}/name`, `/io/in/LCL/{sourceIndex}/col`, and `/io/in/LCL/{sourceIndex}/icon`.
+- direct read `/ch/{index}/name` may return empty even when the visible name is inherited from source/customization.
 
-Source/customization discovery is still open and should be researched before implementing automatic WING names. For Target Encoder v0.1, use fallback labels such as `CH 1` and `MAIN 1`. Add color and icon support later as separate, well-scoped steps.
+For now, Target Encoder should use fallback titles such as `CH 1` and `MAIN 1` on initial load and update from `$name` events when available. Source/customization discovery is still open. Future work should discover how to read initial inherited source/customization appearance without waiting for live events. Add color and icon support later as separate, well-scoped steps.
 
 ## Generic Command Action
 
